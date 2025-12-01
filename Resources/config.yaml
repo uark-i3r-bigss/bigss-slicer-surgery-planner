@@ -1,0 +1,6 @@
+output_file: /tmp/slicer_surgery_planner_points.txt
+write_frequency: always
+coordinate_system: RAS
+landmarks:
+  - Entry
+  - Target
