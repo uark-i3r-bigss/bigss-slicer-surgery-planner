@@ -87,7 +87,34 @@ class ReferencePlanePlannerWidget(qt.QWidget):
         self.setSizeButton.connect('clicked(bool)', self.onSetSize)
         planeActionsFormLayout.addRow(self.setSizeButton)
 
-        # 6. Delete Plane (Selected)
+        # 6. Rotation Ring Size
+        self.ringSizeSlider = ctk.ctkSliderWidget()
+        self.ringSizeSlider.singleStep = 0.1
+        self.ringSizeSlider.minimum = 0.1
+        self.ringSizeSlider.maximum = 5.0
+        self.ringSizeSlider.value = 1.0
+        self.ringSizeSlider.setToolTip("Adjust the size of the rotation handles")
+        self.ringSizeSlider.connect('valueChanged(double)', self.onRotationRingSizeChanged)
+        planeActionsFormLayout.addRow("Rotation Ring Size:", self.ringSizeSlider)
+        
+        # 7. Plane Color
+        self.colorPicker = ctk.ctkColorPickerButton()
+        self.colorPicker.displayColorName = False
+        self.colorPicker.setToolTip("Select the color of the reference plane")
+        self.colorPicker.connect('colorChanged(QColor)', self.onPlaneColorChanged)
+        planeActionsFormLayout.addRow("Plane Color:", self.colorPicker)
+        
+        # 8. Opacity
+        self.opacitySlider = ctk.ctkSliderWidget()
+        self.opacitySlider.singleStep = 0.05
+        self.opacitySlider.minimum = 0.0
+        self.opacitySlider.maximum = 1.0
+        self.opacitySlider.value = 0.5
+        self.opacitySlider.setToolTip("Adjust the opacity of the reference plane")
+        self.opacitySlider.connect('valueChanged(double)', self.onOpacityChanged)
+        planeActionsFormLayout.addRow("Opacity:", self.opacitySlider)
+
+        # 9. Delete Plane (Selected)
         self.deletePlaneButton = qt.QPushButton("Delete Reference Plane")
         self.deletePlaneButton.connect('clicked(bool)', self.onDeletePlane)
         planeActionsFormLayout.addRow(self.deletePlaneButton)
@@ -235,13 +262,38 @@ class ReferencePlanePlannerWidget(qt.QWidget):
             # Update spinboxes without triggering signals
             self.widthSpinBox.blockSignals(True)
             self.heightSpinBox.blockSignals(True)
+            self.ringSizeSlider.blockSignals(True)
+            self.colorPicker.blockSignals(True)
+            self.opacitySlider.blockSignals(True)
             
             size = node.GetSize()
             self.widthSpinBox.setValue(size[0])
             self.heightSpinBox.setValue(size[1])
             
+            displayNode = node.GetDisplayNode()
+            if displayNode:
+                # Interaction handle scale (approx for ring size)
+                # Note: vtkMRMLMarkupsDisplayNode might not have GetInteractionHandleScale in older versions
+                # If not available, we default to 1.0 or try to read it if possible.
+                # Slicer 5.x has SetInteractionHandleScale.
+                if hasattr(displayNode, "GetInteractionHandleScale"):
+                    self.ringSizeSlider.value = displayNode.GetInteractionHandleScale()
+                else:
+                    self.ringSizeSlider.value = 1.0
+                
+                # Color
+                color = displayNode.GetSelectedColor()
+                qcolor = qt.QColor.fromRgbF(color[0], color[1], color[2])
+                self.colorPicker.setColor(qcolor)
+                
+                # Opacity
+                self.opacitySlider.value = displayNode.GetOpacity()
+            
             self.widthSpinBox.blockSignals(False)
             self.heightSpinBox.blockSignals(False)
+            self.ringSizeSlider.blockSignals(False)
+            self.colorPicker.blockSignals(False)
+            self.opacitySlider.blockSignals(False)
 
     def onSizeControlChanged(self, value):
         # Auto-update size when spinbox changes
@@ -263,6 +315,34 @@ class ReferencePlanePlannerWidget(qt.QWidget):
             print(f"[ReferencePlanePlanner] Setting size for {planeNode.GetName()} to {width}x{height}")
             planeNode.SetSize(width, height)
             self.writePlanesToFile()
+
+    def onRotationRingSizeChanged(self, value):
+        planeNode = self.planeSelector.currentNode()
+        if planeNode:
+            displayNode = planeNode.GetDisplayNode()
+            if displayNode:
+                if hasattr(displayNode, "SetInteractionHandleScale"):
+                    displayNode.SetInteractionHandleScale(value)
+                else:
+                    # Fallback or older Slicer version
+                    pass
+
+    def onPlaneColorChanged(self, color):
+        planeNode = self.planeSelector.currentNode()
+        if planeNode:
+            displayNode = planeNode.GetDisplayNode()
+            if displayNode:
+                rgb = [color.redF(), color.greenF(), color.blueF()]
+                displayNode.SetSelectedColor(rgb)
+                displayNode.SetColor(rgb)
+                # Also update text color if possible, usually handled by SetColor/SetSelectedColor for Markups
+
+    def onOpacityChanged(self, value):
+        planeNode = self.planeSelector.currentNode()
+        if planeNode:
+            displayNode = planeNode.GetDisplayNode()
+            if displayNode:
+                displayNode.SetOpacity(value)
 
     def onDeletePlane(self):
         print("[ReferencePlanePlanner] onDeletePlane called")

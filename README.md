@@ -44,5 +44,15 @@ Upon opening the module, use the **Select Action** dropdown to switch between mo
 *   **Reference Plane Planning**: Access tools for adding and removing interactive reference planes.
 *   **Restart Slicer**: Quickly restart Slicer to reload the module (useful for development).
 
+
+## Example 
+
+This example shows the Trajectory Planner function for our module.
+![Screenshot 1](images/trajectory-planning.png)
+
+This example shows the Reference Plane Planner function for our module. Multiple planes can be created and managed in the same scene, and the control of the plane position and orientation can be adjusted interactively.
+![Screenshot 2](images/reference-plane-planning.png)
+
+
 ## Contact Information
 Ping-Cheng Ku (pku1@jhu.edu)
