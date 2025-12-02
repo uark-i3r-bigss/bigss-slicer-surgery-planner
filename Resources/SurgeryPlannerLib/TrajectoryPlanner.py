@@ -294,20 +294,33 @@ class TrajectoryPlannerWidget(qt.QWidget):
         """Trajectory Line"""
         # Create or Get Shared Markup Node
         self.sharedMarkupNode = slicer.mrmlScene.GetFirstNodeByName("SurgeryPlannerLandmarks")
-        if not self.sharedMarkupNode:
-            self.sharedMarkupNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
-            self.sharedMarkupNode.SetName("SurgeryPlannerLandmarks")
+        if self.sharedMarkupNode:
+            print("[TrajectoryPlanner] Found existing SurgeryPlannerLandmarks node")
+            self.addSharedNodeObservers()
+        else:
+            print("[TrajectoryPlanner] SurgeryPlannerLandmarks node not found (will be created when needed)")
         
-        # Calls UpdateSphere whenever the fiducials are changed
-        self.selectedTraj = sh.SlicerTrajectoryModel(1, self.sharedMarkupNode)
-        self.addSelectedTrajObservers(self.selectedTraj)
-        self.addSharedNodeObservers()
-        self.trajList = np.array([self.selectedTraj])
+        self.trajList = np.array([]) # Initialize empty
+        self.selectedTraj = None
         self.SelectedTrajObservers = []
+        
+        # Clear selector
+        self.trajSelector.clear()
 
         self.redSliceNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.redSliceModifiedCallback)
 
+    def ensureSharedMarkupNodeExists(self):
+        if not self.sharedMarkupNode:
+            self.sharedMarkupNode = slicer.mrmlScene.GetFirstNodeByName("SurgeryPlannerLandmarks")
+        
+        if not self.sharedMarkupNode:
+            print("[TrajectoryPlanner] Creating new SurgeryPlannerLandmarks node")
+            self.sharedMarkupNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsFiducialNode')
+            self.sharedMarkupNode.SetName("SurgeryPlannerLandmarks")
+            self.addSharedNodeObservers()
+            
     def onAddTrajectoryButton(self):
+        self.ensureSharedMarkupNodeExists()
         ep = np.array([100.0,100.0,100.0])
         tp = np.array([0.0,0.0,0.0])
         if self.trajSelector.count > 0:  # account for case when all traj deleted and add new one
@@ -465,27 +478,38 @@ class TrajectoryPlannerWidget(qt.QWidget):
         try:
             if yaml:
                 with open(config_path, 'r') as f:
-                    config = yaml.safe_load(f)
+                    full_config = yaml.safe_load(f)
                     print(f"Loaded config from {config_path}")
-                    return config
+                    return full_config.get('trajectory_planner', default_config)
             else:
-                # Simple manual parser
+                # Simple manual parser for nested structure
                 config = default_config.copy()
+                in_section = False
                 with open(config_path, 'r') as f:
                     for line in f:
-                        line = line.strip()
-                        if ':' in line:
-                            key, value = line.split(':', 1)
-                            key = key.strip()
-                            value = value.strip()
+                        line = line.rstrip()
+                        if not line or line.strip().startswith('#'): continue
+                        
+                        # Check for section headers (no indentation)
+                        if not line.startswith(' ') and line.endswith(':'):
+                            if line.strip() == 'trajectory_planner:':
+                                in_section = True
+                            else:
+                                in_section = False
+                            continue
+                        
+                        if in_section and ':' in line:
+                            parts = line.split(':', 1)
+                            key = parts[0].strip()
+                            value = parts[1].strip()
+                            
                             # Handle simple types
                             if value.startswith('"') and value.endswith('"'):
                                 value = value[1:-1]
                             elif value.isdigit():
                                 value = int(value)
                             
-                            if key in config:
-                                config[key] = value
+                            config[key] = value
                                 
                 print(f"Loaded config using simple parser from {config_path}")
                 return config
@@ -565,6 +589,7 @@ class TrajectoryPlannerWidget(qt.QWidget):
              self.onDeleteTrajectoryButton()
 
     def onLoadFromTxtButton(self):
+        self.ensureSharedMarkupNodeExists()
         output_dir = self.loadingDirSelector.currentPath
         output_filename = self.loadingFileNameBox.text
         if not output_dir or not output_filename:

@@ -4,9 +4,10 @@ import slicer
 from .SurgeryPlannerLogic import SurgeryPlannerLogic
 
 class SegmentationPlannerWidget(qt.QWidget):
-    def __init__(self, parent=None, logic=None):
+    def __init__(self, parent=None, logic=None, module_dir=None):
         super(SegmentationPlannerWidget, self).__init__(parent)
         self.logic = logic if logic else SurgeryPlannerLogic()
+        self.module_dir = module_dir
         
         self.setup_ui()
         

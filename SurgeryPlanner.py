@@ -17,6 +17,7 @@ from SurgeryPlannerLib import surgery_planner_helper as sh
 from SurgeryPlannerLib.SurgeryPlannerLogic import SurgeryPlannerLogic, setSlicePoseFromSliceNormalAndPosition
 from SurgeryPlannerLib.TrajectoryPlanner import TrajectoryPlannerWidget
 from SurgeryPlannerLib.SegmentationPlanner import SegmentationPlannerWidget
+from SurgeryPlannerLib.ReferencePlanePlanner import ReferencePlanePlannerWidget
 
 # SurgeryPlanner
 class SurgeryPlanner(ScriptedLoadableModule):
@@ -52,35 +53,58 @@ class SurgeryPlannerWidget(ScriptedLoadableModuleWidget):
         # Mode Selector
         self.layout.addWidget(qt.QLabel("Select Action:"))
         self.modeSelector = qt.QComboBox()
-        self.modeSelector.addItem("Create Trajectory")
-        self.modeSelector.addItem("Create Segmentation")
+        self.modeSelector.addItem("Trajectory Planning")
+        self.modeSelector.addItem("Segmentation Planning")
+        self.modeSelector.addItem("Reference Plane Planning")
         self.modeSelector.addItem("Restart Slicer")
         self.modeSelector.currentIndexChanged.connect(self.onModeChanged)
         self.layout.addWidget(self.modeSelector)
 
-        # Instantiate Sub-Planners
-        # We pass self.dir as module_dir so they can find resources
-        self.trajectoryPlanner = TrajectoryPlannerWidget(parent=None, logic=self.logic, module_dir=self.dir)
-        self.layout.addWidget(self.trajectoryPlanner)
+        # --- Trajectory Area ---
+        self.trajectoryArea = qt.QWidget()
+        self.trajectoryLayout = qt.QVBoxLayout(self.trajectoryArea)
+        self.layout.addWidget(self.trajectoryArea)
         
-        self.segmentationPlanner = SegmentationPlannerWidget(parent=None, logic=self.logic)
-        self.layout.addWidget(self.segmentationPlanner)
-        self.segmentationPlanner.hide() # Hidden by default
+        self.trajectoryPlannerWidget = TrajectoryPlannerWidget(self.trajectoryArea, self.logic, self.dir)
+        self.trajectoryLayout.addWidget(self.trajectoryPlannerWidget)
 
-        # Add vertical spacer
-        self.layout.addStretch(1)
+        # --- Segmentation Area ---
+        self.segmentationArea = qt.QWidget()
+        self.segmentationLayout = qt.QVBoxLayout(self.segmentationArea)
+        self.layout.addWidget(self.segmentationArea)
+        
+        self.segmentationPlannerWidget = SegmentationPlannerWidget(self.segmentationArea, self.logic, self.dir)
+        self.segmentationLayout.addWidget(self.segmentationPlannerWidget)
+        
+        # --- Reference Plane Area ---
+        self.referencePlaneArea = qt.QWidget()
+        self.referencePlaneLayout = qt.QVBoxLayout(self.referencePlaneArea)
+        self.layout.addWidget(self.referencePlaneArea)
+        
+        self.referencePlanePlannerWidget = ReferencePlanePlannerWidget(self.referencePlaneArea, self.logic, self.dir)
+        self.referencePlaneLayout.addWidget(self.referencePlanePlannerWidget)
+
+        # Initial State
+        self.onModeChanged(0)
 
     def cleanup(self):
         pass
 
     def onModeChanged(self, index):
-        if index == 0: # Create Trajectory
-            self.trajectoryPlanner.show()
-            self.segmentationPlanner.hide()
-        elif index == 1: # Create Segmentation
-            self.trajectoryPlanner.hide()
-            self.segmentationPlanner.show()
-        elif index == 2: # Restart Slicer
+        mode = self.modeSelector.currentText
+        
+        # Hide all first
+        self.trajectoryArea.hide()
+        self.segmentationArea.hide()
+        self.referencePlaneArea.hide()
+        
+        if mode == "Trajectory Planning":
+            self.trajectoryArea.show()
+        elif mode == "Segmentation Planning":
+            self.segmentationArea.show()
+        elif mode == "Reference Plane Planning":
+            self.referencePlaneArea.show()
+        elif mode == "Restart Slicer":
             slicer.util.restart()
 
 class SurgeryPlannerTest(ScriptedLoadableModuleTest):

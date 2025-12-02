@@ -1,6 +1,13 @@
-output_file: /tmp/slicer_surgery_planner_points.txt
-write_frequency: always
-coordinate_system: RAS
-landmarks:
-  - Entry
-  - Target
+trajectory_planner:
+  output_file: /tmp/slicer_surgery_planner_points.txt
+  write_frequency: always
+  coordinate_system: RAS
+  landmarks:
+    - Entry
+    - Target
+
+reference_plane_planning:
+  output_plane_file: /tmp/slicer_surgery_planner_planes.txt
+  coordinate_system: RAS
+  default_width: 150.0
+  default_height: 150.0

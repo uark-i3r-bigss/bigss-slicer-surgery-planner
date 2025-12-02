@@ -21,8 +21,8 @@ The Surgery Planner module allows for planning surgery trajectories and segmenta
     *   (To be implemented)
 
 3.  **Reference Plane Planning**:
-    *   Create and manage Reference Plane for potential visualization of 2D cross-sections of the 3D volume.
-    *   (To be implemented)
+    *   Create and manage Reference Planes (`vtkMRMLMarkupsPlaneNode`) for visualizing 2D cross-sections.
+    *   Interactive planes can be moved, rotated, and resized in the 3D view.
 
 ## Setup Instructions
 
@@ -41,6 +41,7 @@ Upon opening the module, use the **Select Action** dropdown to switch between mo
 
 *   **Create Trajectory**: Access tools for adding trajectories, moving points, and visualizing slices.
 *   **Create Segmentation**: Access tools for adding and removing segmentation nodes.
+*   **Reference Plane Planning**: Access tools for adding and removing interactive reference planes.
 *   **Restart Slicer**: Quickly restart Slicer to reload the module (useful for development).
 
 ## Contact Information
