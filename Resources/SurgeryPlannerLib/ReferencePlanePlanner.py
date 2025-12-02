@@ -47,35 +47,50 @@ class ReferencePlanePlannerWidget(qt.QWidget):
         self.main_layout.addWidget(planeActionsCollapsibleButton)
         planeActionsFormLayout = qt.QFormLayout(planeActionsCollapsibleButton)
 
+        # 1. Add Plane
         self.addPlaneButton = qt.QPushButton("Add Reference Plane")
         self.addPlaneButton.connect('clicked(bool)', self.onAddPlane)
         planeActionsFormLayout.addRow(self.addPlaneButton)
 
-        self.deletePlaneButton = qt.QPushButton("Delete Reference Plane")
-        self.deletePlaneButton.connect('clicked(bool)', self.onDeletePlane)
-        planeActionsFormLayout.addRow(self.deletePlaneButton)
+        # 2. Plane Selector
+        self.planeSelector = slicer.qMRMLNodeComboBox()
+        self.planeSelector.nodeTypes = ["vtkMRMLMarkupsPlaneNode"]
+        self.planeSelector.selectNodeUponCreation = True
+        self.planeSelector.addEnabled = False
+        self.planeSelector.removeEnabled = False
+        self.planeSelector.noneEnabled = True
+        self.planeSelector.showHidden = False
+        self.planeSelector.showChildNodeTypes = False
+        self.planeSelector.setMRMLScene(slicer.mrmlScene)
+        self.planeSelector.setToolTip("Select a Reference Plane to modify")
+        self.planeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onPlaneSelectionChanged)
+        planeActionsFormLayout.addRow("Select Plane:", self.planeSelector)
         
-        # Size Controls
-        sizeCollapsibleButton = ctk.ctkCollapsibleButton()
-        sizeCollapsibleButton.text = "Plane Size"
-        self.main_layout.addWidget(sizeCollapsibleButton)
-        sizeFormLayout = qt.QFormLayout(sizeCollapsibleButton)
-        
+        # 3. Width Adjustment
         self.widthSpinBox = qt.QDoubleSpinBox()
         self.widthSpinBox.setRange(1.0, 500.0)
         self.widthSpinBox.setValue(150.0) # Default 150mm
         self.widthSpinBox.setSuffix(" mm")
-        sizeFormLayout.addRow("Width:", self.widthSpinBox)
+        self.widthSpinBox.connect("valueChanged(double)", self.onSizeControlChanged)
+        planeActionsFormLayout.addRow("Width:", self.widthSpinBox)
         
+        # 4. Height Adjustment
         self.heightSpinBox = qt.QDoubleSpinBox()
         self.heightSpinBox.setRange(1.0, 500.0)
         self.heightSpinBox.setValue(150.0) # Default 150mm
         self.heightSpinBox.setSuffix(" mm")
-        sizeFormLayout.addRow("Height:", self.heightSpinBox)
+        self.heightSpinBox.connect("valueChanged(double)", self.onSizeControlChanged)
+        planeActionsFormLayout.addRow("Height:", self.heightSpinBox)
         
+        # 5. Set Size Button
         self.setSizeButton = qt.QPushButton("Set Size")
         self.setSizeButton.connect('clicked(bool)', self.onSetSize)
-        sizeFormLayout.addRow(self.setSizeButton)
+        planeActionsFormLayout.addRow(self.setSizeButton)
+
+        # 6. Delete Plane (Selected)
+        self.deletePlaneButton = qt.QPushButton("Delete Reference Plane")
+        self.deletePlaneButton.connect('clicked(bool)', self.onDeletePlane)
+        planeActionsFormLayout.addRow(self.deletePlaneButton)
         
         # Saving Controls
         savingCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -119,6 +134,10 @@ class ReferencePlanePlannerWidget(qt.QWidget):
         nodes = slicer.util.getNodesByClass("vtkMRMLMarkupsPlaneNode")
         for node in nodes:
             self.addPlaneObservers(node)
+            
+        # Initialize selector if nodes exist
+        if nodes:
+            self.planeSelector.setCurrentNode(nodes[-1])
 
     def addPlaneObservers(self, node):
         # Observe modification events to trigger auto-save
@@ -200,6 +219,9 @@ class ReferencePlanePlannerWidget(qt.QWidget):
             # Trigger save
             self.writePlanesToFile()
             
+            # Update selector
+            self.planeSelector.setCurrentNode(planeNode)
+            
             print("[ReferencePlanePlanner] Plane added successfully")
             
         except Exception as e:
@@ -208,34 +230,50 @@ class ReferencePlanePlannerWidget(qt.QWidget):
             traceback.print_exc()
             qt.QMessageBox.warning(self, "Error", f"Could not create Reference Plane: {e}")
 
+    def onPlaneSelectionChanged(self, node):
+        if node:
+            # Update spinboxes without triggering signals
+            self.widthSpinBox.blockSignals(True)
+            self.heightSpinBox.blockSignals(True)
+            
+            size = node.GetSize()
+            self.widthSpinBox.setValue(size[0])
+            self.heightSpinBox.setValue(size[1])
+            
+            self.widthSpinBox.blockSignals(False)
+            self.heightSpinBox.blockSignals(False)
+
+    def onSizeControlChanged(self, value):
+        # Auto-update size when spinbox changes
+        self.onSetSize()
+
     def onSetSize(self):
-        # Update size of the last added plane (or selected if we had a selector)
-        nodes = slicer.util.getNodesByClass("vtkMRMLMarkupsPlaneNode")
-        if not nodes:
-            print("[ReferencePlanePlanner] No plane to resize")
+        # Update size of the selected plane
+        planeNode = self.planeSelector.currentNode()
+        if not planeNode:
+            print("[ReferencePlanePlanner] No plane selected to resize")
             return
 
-        # Ideally we'd have a selector, but for now take the last one
-        planeNode = nodes[-1]
         width = self.widthSpinBox.value
         height = self.heightSpinBox.value
         
-        print(f"[ReferencePlanePlanner] Setting size for {planeNode.GetName()} to {width}x{height}")
-        planeNode.SetSize(width, height)
-        self.writePlanesToFile()
+        # Only update if changed to avoid spam/loops
+        current_size = planeNode.GetSize()
+        if abs(current_size[0] - width) > 0.001 or abs(current_size[1] - height) > 0.001:
+            print(f"[ReferencePlanePlanner] Setting size for {planeNode.GetName()} to {width}x{height}")
+            planeNode.SetSize(width, height)
+            self.writePlanesToFile()
 
     def onDeletePlane(self):
         print("[ReferencePlanePlanner] onDeletePlane called")
-        # Remove the last added plane node
-        nodes = slicer.util.getNodesByClass("vtkMRMLMarkupsPlaneNode")
-        if nodes:
-            # Sort by ID or creation time if possible, or just take the last one in the list
-            node_to_remove = nodes[-1] 
+        # Remove the selected plane node
+        node_to_remove = self.planeSelector.currentNode()
+        if node_to_remove:
             slicer.mrmlScene.RemoveNode(node_to_remove)
             print(f"[ReferencePlanePlanner] Removed Reference Plane: {node_to_remove.GetName()}")
             self.writePlanesToFile()
         else:
-            print("[ReferencePlanePlanner] No Reference Plane nodes to remove")
+            print("[ReferencePlanePlanner] No Reference Plane selected to remove")
 
     def load_config(self):
         config_path = os.path.join(self.module_dir, 'Resources', 'config.yaml')
